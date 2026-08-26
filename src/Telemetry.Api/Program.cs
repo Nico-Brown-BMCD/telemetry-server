@@ -5,6 +5,7 @@ using Microsoft.OpenApi;
 using Prometheus;
 using Telemetry.Api.Application.Interfaces;
 using Telemetry.Api.Application.Services;
+using Telemetry.Api.Infrastructure.Middleware;
 using Telemetry.Api.Infrastructure.Persistence;
 using Serilog;
 using MongoDB.Driver;
@@ -159,6 +160,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseRouting();
 app.UseHttpMetrics();
+app.UseMiddleware<ApiKeyMiddleware>();
 
 app.MapControllers();
 app.MapMetrics();

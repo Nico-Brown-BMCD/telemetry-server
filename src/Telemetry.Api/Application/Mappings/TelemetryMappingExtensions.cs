@@ -208,5 +208,48 @@ namespace Telemetry.Api.Application.Mappings
                 EventArgs = model.EventArgs
             };
         }
+
+        /// <summary>
+        /// Transforms the provided savings entry DTO into its corresponding model representation.
+        /// </summary>
+        /// <param name="dto">The data transfer object to be transformed.</param>
+        /// <returns>A model instance derived from the given DTO.</returns>
+        public static SavingsEntry ToModel(this SavingsEntryDto dto)
+        {
+            return new SavingsEntry
+            {
+                Id = Guid.CreateVersion7(),
+                QueueKey = dto.QueueKey,
+                Kind = dto.Kind,
+                SourceId = dto.SourceId,
+                OccurredAt = dto.OccurredAt,
+                Label = dto.Label,
+                Minutes = dto.Minutes,
+                RecordedAt = dto.RecordedAt,
+                Hostname = dto.Hostname,
+                Username = dto.Username
+            };
+        }
+
+        /// <summary>
+        /// Converts the specified savings entry model to a DTO representation.
+        /// </summary>
+        /// <param name="model">The model object to be converted.</param>
+        /// <returns>A new DTO instance created from the model.</returns>
+        public static SavingsEntryDto ToDto(this SavingsEntry model)
+        {
+            return new SavingsEntryDto
+            {
+                QueueKey = model.QueueKey,
+                Kind = model.Kind,
+                SourceId = model.SourceId,
+                OccurredAt = model.OccurredAt,
+                Label = model.Label,
+                Minutes = model.Minutes,
+                RecordedAt = model.RecordedAt,
+                Hostname = model.Hostname,
+                Username = model.Username
+            };
+        }
     }
 }

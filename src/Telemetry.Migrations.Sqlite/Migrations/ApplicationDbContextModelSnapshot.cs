@@ -305,6 +305,72 @@ namespace Telemetry.Migrations.Sqlite.Migrations
                     b.Navigation("Trace")
                         .IsRequired();
                 });
+
+            modelBuilder.Entity("Telemetry.Api.Domain.Models.SavingsEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("_id");
+
+                    b.Property<string>("Hostname")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("hostname");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("label");
+
+                    b.Property<double>("Minutes")
+                        .HasColumnType("REAL")
+                        .HasColumnName("minutes");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<string>("QueueKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("queue_key");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<long>("SourceId")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("source_id");
+
+                    b.Property<string>("Username")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("username");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurredAt")
+                        .HasDatabaseName("IX_savings_occurred_at");
+
+                    b.HasIndex("QueueKey")
+                        .HasDatabaseName("IX_savings_queue_key");
+
+                    b.HasIndex("QueueKey", "Kind", "SourceId", "OccurredAt")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_savings_entry");
+
+                    b.ToTable("savings");
+                });
 #pragma warning restore 612, 618
         }
     }

@@ -4,6 +4,7 @@ using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Reflection;
+using Telemetry.Api.Application.DTOs;
 using Telemetry.Api.Application.Interfaces;
 using Telemetry.Api.Domain.Constants;
 using Telemetry.Api.Domain.Models;
@@ -18,6 +19,7 @@ namespace Telemetry.Api.Infrastructure.Persistence
 
         private readonly IMongoCollection<EventRecord> _eventsCollection;
         private readonly IMongoCollection<ScriptRecord> _scriptCollection;
+        private readonly IMongoCollection<SavingsEntry> _savingsCollection;
 
         static MongoNativeDbContext()
         {
@@ -31,6 +33,7 @@ namespace Telemetry.Api.Infrastructure.Persistence
             
             _eventsCollection = _mongoDatabase.GetCollection<EventRecord>(GetCollectionName<EventRecord>());
             _scriptCollection = _mongoDatabase.GetCollection<ScriptRecord>(GetCollectionName<ScriptRecord>());
+            _savingsCollection = _mongoDatabase.GetCollection<SavingsEntry>(GetCollectionName<SavingsEntry>());
         }
 
         public async Task AddEventRecord(EventRecord eventRecord, CancellationToken cancellationToken)
@@ -41,6 +44,46 @@ namespace Telemetry.Api.Infrastructure.Persistence
         public async Task AddScriptRecord(ScriptRecord scriptRecord, CancellationToken cancellationToken)
         {
             await _scriptCollection.InsertOneAsync(scriptRecord, new InsertOneOptions(), cancellationToken);
+        }
+
+        public async Task AddSavingsEntry(SavingsEntry savingsEntry, CancellationToken cancellationToken)
+        {
+            await _savingsCollection.InsertOneAsync(savingsEntry, new InsertOneOptions(), cancellationToken);
+        }
+
+        public async Task<bool> SavingsEntryExistsAsync(string queueKey, string kind, long sourceId, DateTimeOffset occurredAt, CancellationToken cancellationToken)
+        {
+            var filter = Builders<SavingsEntry>.Filter.And(
+                Builders<SavingsEntry>.Filter.Eq(e => e.QueueKey, queueKey),
+                Builders<SavingsEntry>.Filter.Eq(e => e.Kind, kind),
+                Builders<SavingsEntry>.Filter.Eq(e => e.SourceId, sourceId),
+                Builders<SavingsEntry>.Filter.Eq(e => e.OccurredAt, occurredAt)
+            );
+            return await _savingsCollection.Find(filter).AnyAsync(cancellationToken);
+        }
+
+        public async Task<HashSet<(string QueueKey, string Kind, long SourceId, DateTimeOffset OccurredAt)>> GetExistingSavingsKeysAsync(
+            IReadOnlyList<SavingsEntryDto> entries, CancellationToken cancellationToken)
+        {
+            var queueKeys = entries.Select(e => e.QueueKey).Distinct().ToList();
+            var filter = Builders<SavingsEntry>.Filter.In(e => e.QueueKey, queueKeys);
+
+            var existing = await _savingsCollection
+                .Find(filter)
+                .Project(Builders<SavingsEntry>.Projection
+                    .Include(e => e.QueueKey)
+                    .Include(e => e.Kind)
+                    .Include(e => e.SourceId)
+                    .Include(e => e.OccurredAt))
+                .ToListAsync(cancellationToken);
+
+            return existing
+                .Select(doc => (
+                    doc[SavingsPropertyNames.QueueKey].AsString,
+                    doc[SavingsPropertyNames.Kind].AsString,
+                    (long)doc[SavingsPropertyNames.SourceId].AsInt64,
+                    DateTimeOffset.FromUnixTimeMilliseconds(doc[SavingsPropertyNames.OccurredAt].AsBsonDateTime.MillisecondsSinceEpoch)))
+                .ToHashSet();
         }
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken)
@@ -90,6 +133,11 @@ namespace Telemetry.Api.Infrastructure.Persistence
             if (!BsonClassMap.IsClassMapRegistered(typeof(ScriptRecord)))
             {
                 RegisterClassScriptRecord();
+            }
+
+            if (!BsonClassMap.IsClassMapRegistered(typeof(SavingsEntry)))
+            {
+                RegisterClassSavingsEntry();
             }
 
             if (!BsonClassMap.IsClassMapRegistered(typeof(TraceInfo)))
@@ -204,6 +252,36 @@ namespace Telemetry.Api.Infrastructure.Persistence
                 classMap.MapProperty(p => p.CommandResults)
                     .SetElementName(PropertyNames.CommandResults)
                     .SetSerializer(new DynamicDataBsonSerializer());
+            });
+        }
+
+        private static void RegisterClassSavingsEntry()
+        {
+            BsonClassMap.RegisterClassMap<SavingsEntry>(classMap =>
+            {
+                classMap.AutoMap();
+
+                classMap.MapIdProperty(p => p.Id)
+                    .SetElementName(PropertyNames.Id)
+                    .SetSerializer(new GuidSerializer(GuidRepresentation.Standard));
+
+                classMap.MapProperty(p => p.QueueKey).SetElementName(SavingsPropertyNames.QueueKey);
+                classMap.MapProperty(p => p.Kind).SetElementName(SavingsPropertyNames.Kind);
+                classMap.MapProperty(p => p.SourceId).SetElementName(SavingsPropertyNames.SourceId);
+
+                classMap.MapProperty(p => p.OccurredAt)
+                    .SetElementName(SavingsPropertyNames.OccurredAt)
+                    .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
+
+                classMap.MapProperty(p => p.Label).SetElementName(SavingsPropertyNames.Label);
+                classMap.MapProperty(p => p.Minutes).SetElementName(SavingsPropertyNames.Minutes);
+
+                classMap.MapProperty(p => p.RecordedAt)
+                    .SetElementName(SavingsPropertyNames.RecordedAt)
+                    .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
+
+                classMap.MapProperty(p => p.Hostname).SetElementName(SavingsPropertyNames.Hostname);
+                classMap.MapProperty(p => p.Username).SetElementName(SavingsPropertyNames.Username);
             });
         }
     }

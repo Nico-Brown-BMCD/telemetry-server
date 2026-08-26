@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using System.Text;
+using System.Text.Json;
 using Telemetry.Api.Application.DTOs;
 using TUnit.Core.Interfaces;
 
@@ -159,6 +160,116 @@ namespace Telemetry.Api.IntegrationTests
 
             // Assert
             response.EnsureSuccessStatusCode();
+        }
+
+        [Test]
+        public async Task PostSavings_ReturnsOk()
+        {
+            // Arrange
+            var batch = new SavingsBatchDto
+            {
+                Meta = new MetaDto { SchemaVersion = new Version(2, 0) },
+                Entries =
+                [
+                    new SavingsEntryDto
+                    {
+                        QueueKey = "test-queue-key",
+                        Kind = "payload",
+                        SourceId = 1,
+                        OccurredAt = DateTimeOffset.UtcNow,
+                        Label = "Test Payload",
+                        Minutes = 5.0,
+                        RecordedAt = DateTimeOffset.UtcNow,
+                        Hostname = "TEST-HOST",
+                        Username = "testuser"
+                    }
+                ]
+            };
+
+            // Act
+            HttpResponseMessage response = await Client.PostAsJsonAsync("/api/v2/savings", batch);
+
+            // Assert
+            response.EnsureSuccessStatusCode();
+            var body = await response.Content.ReadAsStringAsync();
+            await Assert.That(body).Contains("\"recorded\":1");
+        }
+
+        [Test]
+        public async Task PostSavings_Idempotent_NoDuplicates()
+        {
+            // Arrange
+            var timestamp = DateTimeOffset.UtcNow;
+            var batch = new SavingsBatchDto
+            {
+                Meta = new MetaDto { SchemaVersion = new Version(2, 0) },
+                Entries =
+                [
+                    new SavingsEntryDto
+                    {
+                        QueueKey = "idempotent-key",
+                        Kind = "op",
+                        SourceId = 99,
+                        OccurredAt = timestamp,
+                        Label = "Sync to Central",
+                        Minutes = 2.0,
+                        RecordedAt = timestamp,
+                        Hostname = "HOST",
+                        Username = "user"
+                    }
+                ]
+            };
+
+            // Act - send twice
+            await Client.PostAsJsonAsync("/api/v2/savings", batch);
+            HttpResponseMessage response = await Client.PostAsJsonAsync("/api/v2/savings", batch);
+
+            // Assert - second call records 0
+            response.EnsureSuccessStatusCode();
+            var body = await response.Content.ReadAsStringAsync();
+            await Assert.That(body).Contains("\"recorded\":0");
+        }
+
+        [Test]
+        public async Task PostRawSavings_ReturnsOk()
+        {
+            // Arrange
+            var content = await File.ReadAllTextAsync("assets/savings.json");
+            var stringContent = new StringContent(content, Encoding.UTF8, "application/json");
+
+            // Act
+            HttpResponseMessage response = await Client.PostAsync("/api/v2/savings", stringContent);
+
+            // Assert
+            response.EnsureSuccessStatusCode();
+        }
+
+        [Test]
+        public async Task PostSavings_BatchTooLarge_Returns400()
+        {
+            // Arrange
+            var entries = Enumerable.Range(0, 1001).Select(i => new SavingsEntryDto
+            {
+                QueueKey = "key",
+                Kind = "payload",
+                SourceId = i,
+                OccurredAt = DateTimeOffset.UtcNow,
+                Label = "item",
+                Minutes = 1.0,
+                RecordedAt = DateTimeOffset.UtcNow
+            }).ToList();
+
+            var batch = new SavingsBatchDto
+            {
+                Meta = new MetaDto { SchemaVersion = new Version(2, 0) },
+                Entries = entries
+            };
+
+            // Act
+            HttpResponseMessage response = await Client.PostAsJsonAsync("/api/v2/savings", batch);
+
+            // Assert
+            await Assert.That((int)response.StatusCode).IsEqualTo(400);
         }
     }
 }

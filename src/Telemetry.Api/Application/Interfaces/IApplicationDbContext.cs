@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+using Telemetry.Api.Application.DTOs;
 using Telemetry.Api.Domain.Models;
 
 namespace Telemetry.Api.Application.Interfaces
@@ -20,6 +20,24 @@ namespace Telemetry.Api.Application.Interfaces
         /// </summary>
         /// <returns>A task that represents the asynchronous add operation.</returns>
         Task AddScriptRecord(ScriptRecord scriptRecord, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Asynchronously adds a new savings entry to the database context.
+        /// </summary>
+        /// <returns>A task that represents the asynchronous add operation.</returns>
+        Task AddSavingsEntry(SavingsEntry savingsEntry, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Checks if a savings entry with the given composite key already exists.
+        /// </summary>
+        /// <returns>True if an entry with matching queue_key, kind, source_id, and occurred_at exists.</returns>
+        Task<bool> SavingsEntryExistsAsync(string queueKey, string kind, long sourceId, DateTimeOffset occurredAt, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Returns existing composite keys from the savings table matching the given entries.
+        /// </summary>
+        Task<HashSet<(string QueueKey, string Kind, long SourceId, DateTimeOffset OccurredAt)>> GetExistingSavingsKeysAsync(
+            IReadOnlyList<SavingsEntryDto> entries, CancellationToken cancellationToken);
 
         /// <summary>
         /// Asynchronously saves all changes made in the current context to the database.

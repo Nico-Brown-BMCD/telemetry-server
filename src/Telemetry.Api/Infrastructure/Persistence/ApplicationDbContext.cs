@@ -6,6 +6,7 @@ using System.Data;
 using System.Data.Common;
 using System.Reflection;
 using System.Text.Json;
+using Telemetry.Api.Application.DTOs;
 using Telemetry.Api.Application.Interfaces;
 using Telemetry.Api.Domain.Constants;
 using Telemetry.Api.Domain.Models;
@@ -54,6 +55,15 @@ namespace Telemetry.Api.Infrastructure.Persistence
         public DbSet<ScriptRecord> ScriptRecords => Set<ScriptRecord>();
 
         /// <summary>
+        /// Gets or sets the collection of savings entries associated with the current context.
+        /// </summary>
+        /// <remarks>
+        /// This property contains time-saved records from automated Revit task processing,
+        /// tracking manual effort avoided by payloads and model operations.
+        /// </remarks>
+        public DbSet<SavingsEntry> SavingsEntries => Set<SavingsEntry>();
+
+        /// <summary>
         /// Asynchronously adds a new event record to the database context.
         /// </summary>
         /// <returns>A task that represents the asynchronous add operation.</returns>
@@ -69,6 +79,44 @@ namespace Telemetry.Api.Infrastructure.Persistence
         public async Task AddScriptRecord(ScriptRecord scriptRecord, CancellationToken cancellationToken)
         {
             await ScriptRecords.AddAsync(scriptRecord, cancellationToken);
+        }
+
+        /// <summary>
+        /// Asynchronously adds a new savings entry to the database context.
+        /// </summary>
+        /// <returns>A task that represents the asynchronous add operation.</returns>
+        public async Task AddSavingsEntry(SavingsEntry savingsEntry, CancellationToken cancellationToken)
+        {
+            await SavingsEntries.AddAsync(savingsEntry, cancellationToken);
+        }
+
+        /// <summary>
+        /// Checks if a savings entry with the given composite key already exists.
+        /// </summary>
+        public async Task<bool> SavingsEntryExistsAsync(string queueKey, string kind, long sourceId, DateTimeOffset occurredAt, CancellationToken cancellationToken)
+        {
+            return await SavingsEntries.AnyAsync(e =>
+                e.QueueKey == queueKey &&
+                e.Kind == kind &&
+                e.SourceId == sourceId &&
+                e.OccurredAt == occurredAt,
+                cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public async Task<HashSet<(string QueueKey, string Kind, long SourceId, DateTimeOffset OccurredAt)>> GetExistingSavingsKeysAsync(
+            IReadOnlyList<SavingsEntryDto> entries, CancellationToken cancellationToken)
+        {
+            var queueKeys = entries.Select(e => e.QueueKey).Distinct().ToList();
+
+            var existing = await SavingsEntries
+                .Where(e => queueKeys.Contains(e.QueueKey))
+                .Select(e => new { e.QueueKey, e.Kind, e.SourceId, e.OccurredAt })
+                .ToListAsync(cancellationToken);
+
+            return existing
+                .Select(e => (e.QueueKey, e.Kind, e.SourceId, e.OccurredAt))
+                .ToHashSet();
         }
 
         /// <summary>
@@ -185,6 +233,14 @@ namespace Telemetry.Api.Infrastructure.Persistence
             modelBuilder.Entity<EventRecord>(entity =>
             {
                 entity.Property(e => e.Timestamp)
+                    .HasBsonRepresentation(BsonType.DateTime);
+            });
+
+            modelBuilder.Entity<SavingsEntry>(entity =>
+            {
+                entity.Property(e => e.OccurredAt)
+                    .HasBsonRepresentation(BsonType.DateTime);
+                entity.Property(e => e.RecordedAt)
                     .HasBsonRepresentation(BsonType.DateTime);
             });
         }

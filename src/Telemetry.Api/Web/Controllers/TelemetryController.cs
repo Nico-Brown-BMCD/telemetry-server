@@ -4,6 +4,7 @@ using Telemetry.Api.Application.Mappings;
 using Telemetry.Api.Application.DTOs;
 using Telemetry.Api.Application.Interfaces;
 using Telemetry.Api.Domain.Models;
+using System.Diagnostics;
 
 namespace Telemetry.Api.Web.Controllers
 {
@@ -119,6 +120,84 @@ namespace Telemetry.Api.Web.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unexpected error while saving event record");
+                return StatusCode(500);
+            }
+        }
+
+        /// <summary>
+        ///     Adds savings entries to DB (idempotent batch insert).
+        /// </summary>
+        /// <param name="dto">Batch of savings entries to record.</param>
+        /// <returns>Returns the number of new entries recorded.</returns>
+        [HttpPost("savings")]
+        [ProducesResponseType(200)]
+        [ProducesResponseType(400)]
+        [ProducesResponseType(500)]
+        [ProducesResponseType(503)]
+        public async Task<IActionResult> PostSavings([FromBody] SavingsBatchDto dto)
+        {
+            try
+            {
+                CancellationToken ct = HttpContext.RequestAborted;
+
+                if (dto.Meta.SchemaVersion.Major != 2)
+                {
+                    return BadRequest(new ProblemDetails()
+                    {
+                        Title = "Unsupported Schema Version",
+                        Detail = $"Expected version 2.0.0, but received {dto.Meta.SchemaVersion}",
+                        Status = StatusCodes.Status400BadRequest
+                    });
+                }
+
+                if (dto.Entries.Count == 0)
+                {
+                    return Ok(new { recorded = 0, total = 0 });
+                }
+
+                if (dto.Entries.Count > 1000)
+                {
+                    return BadRequest(new ProblemDetails()
+                    {
+                        Title = "Batch Too Large",
+                        Detail = "Maximum 1000 entries per request.",
+                        Status = StatusCodes.Status400BadRequest
+                    });
+                }
+
+                var sw = Stopwatch.StartNew();
+
+                // Bulk lookup existing keys to avoid per-entry round-trips
+                var existingKeys = await _context.GetExistingSavingsKeysAsync(dto.Entries, ct);
+
+                int recorded = 0;
+                foreach (var entry in dto.Entries)
+                {
+                    var key = (entry.QueueKey, entry.Kind, entry.SourceId, entry.OccurredAt);
+                    if (!existingKeys.Contains(key))
+                    {
+                        await _context.AddSavingsEntry(entry.ToModel(), ct);
+                        recorded++;
+                    }
+                }
+
+                await _context.SaveChangesAsync(ct);
+                sw.Stop();
+
+                _logger.LogInformation(
+                    "Savings batch: {Recorded}/{Total} entries recorded in {ElapsedMs}ms",
+                    recorded, dto.Entries.Count, sw.ElapsedMilliseconds);
+
+                return Ok(new { recorded, total = dto.Entries.Count });
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Database error while saving savings entries");
+                return StatusCode(503);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error while saving savings entries");
                 return StatusCode(500);
             }
         }

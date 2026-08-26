@@ -268,6 +268,66 @@ New migration files will be created in their respective projects under the `Migr
 > ❗NOTE  
 > **MongoDB** does not use EF Core migrations. Changes to the MongoDB data structure are handled by the application at runtime (schema-less or through driver-level configuration).
 
+## Azure App Service Deployment Notes
+
+The following issues were encountered and resolved when deploying to Azure App Service (Windows) with Azure SQL.
+
+### 1. Migrations DLL Not Included in Publish Output
+
+The `dotnet publish` command does not automatically include the migrations assembly (e.g., `Telemetry.Migrations.SqlServer.dll`) because it is not a direct project reference of `Telemetry.Api`. The app will crash on startup with a migration error if this DLL is missing.
+
+**Fix:** After publishing, manually copy the migrations DLL into the publish output directory:
+
+```powershell
+dotnet publish src/Telemetry.Api/Telemetry.Api.csproj -c Release -o ./publish
+Copy-Item "src\Telemetry.Api\bin\Release\net10.0\Telemetry.Migrations.SqlServer.dll" ".\publish\"
+```
+
+Repeat for whichever provider you are using (e.g., `Telemetry.Migrations.Postgres.dll`).
+
+### 2. Pre-existing Database Has No Migration History
+
+If the database already contains the schema (tables were created manually or by a previous deployment), but the `__EFMigrationsHistory` table is empty or missing, EF Core will attempt to re-apply the initial migration and fail with:
+
+```
+SqlException: There is already an object named 'events' in the database.
+```
+
+**Fix:** Insert the migration record manually to tell EF Core the schema is already applied:
+
+```sql
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES ('20260406123037_InitSqlServer', '10.0.10')
+```
+
+Run this in the Azure Portal **Query editor** (SQL databases → your database → Query editor).
+
+### 3. Azure SQL Firewall Blocks App Service
+
+Azure SQL Server blocks all inbound connections by default. The App Service cannot reach the database unless the firewall is configured.
+
+**Fix:** In Azure Portal → **SQL servers** → your server → **Networking**, enable:
+
+> ✅ Allow Azure services and resources to access this server
+
+Alternatively, add the App Service's outbound IP addresses as explicit firewall rules (found under App Service → **Properties** → **Outbound IP addresses**).
+
+### 4. Azure App Service Environment Variables
+
+The app requires two settings configured in Azure Portal → App Service → **Configuration**:
+
+| Type | Name | Value |
+|:-----|:-----|:------|
+| Application setting | `DbProvider` | `mssql` |
+| Connection string (SQLAzure) | `DefaultConnection` | your Azure SQL connection string |
+
+ASP.NET Core automatically maps `SQLAZURECONNSTR_DefaultConnection` to `ConnectionStrings:DefaultConnection`, so the SQLAzure connection string type works correctly.
+
+### Live Instance
+
+Burns & McDonnell internal deployment:
+- **Status:** `https://bmcd-pyrevit-telemetry-e0e5g2b0e0brbrf2.uksouth-01.azurewebsites.net/api/v2/status`
+
 ## License
 
 This project is licensed under the terms of the license included in the root directory.

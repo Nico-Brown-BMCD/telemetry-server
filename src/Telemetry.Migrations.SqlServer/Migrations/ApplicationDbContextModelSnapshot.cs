@@ -310,6 +310,72 @@ namespace Telemetry.Migrations.SqlServer.Migrations
                     b.Navigation("Trace")
                         .IsRequired();
                 });
+
+            modelBuilder.Entity("Telemetry.Api.Domain.Models.SavingsEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("_id");
+
+                    b.Property<string>("Hostname")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("hostname");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)")
+                        .HasColumnName("label");
+
+                    b.Property<double>("Minutes")
+                        .HasColumnType("float")
+                        .HasColumnName("minutes");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("datetimeoffset")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<string>("QueueKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("queue_key");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("datetimeoffset")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_id");
+
+                    b.Property<string>("Username")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("username");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurredAt")
+                        .HasDatabaseName("IX_savings_occurred_at");
+
+                    b.HasIndex("QueueKey")
+                        .HasDatabaseName("IX_savings_queue_key");
+
+                    b.HasIndex("QueueKey", "Kind", "SourceId", "OccurredAt")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_savings_entry");
+
+                    b.ToTable("savings");
+                });
 #pragma warning restore 612, 618
         }
     }

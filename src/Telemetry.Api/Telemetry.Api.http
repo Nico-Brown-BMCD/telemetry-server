@@ -91,3 +91,37 @@ Content-Type: application/json
 
 ### Get Prometheus Metrics
 GET {{Telemetry_Api_HostAddress}}/metrics
+
+### Post Savings Batch
+POST {{Telemetry_Api_HostAddress}}/api/v2/savings
+Content-Type: application/json
+
+{
+  "meta": {
+    "schema": "2.0.0"
+  },
+  "entries": [
+    {
+      "queue_key": "abc123def456",
+      "kind": "payload",
+      "source_id": 42,
+      "occurred_at": "2024-03-27T10:00:00Z",
+      "label": "Export Sheets to PDF",
+      "minutes": 12.5,
+      "recorded_at": "2024-03-27T10:01:00Z",
+      "hostname": "WORKSTATION-01",
+      "username": "testuser"
+    },
+    {
+      "queue_key": "abc123def456",
+      "kind": "op",
+      "source_id": 7,
+      "occurred_at": "2024-03-27T09:45:00Z",
+      "label": "Sync to Central",
+      "minutes": 3.0,
+      "recorded_at": "2024-03-27T09:46:00Z",
+      "hostname": "WORKSTATION-01",
+      "username": "testuser"
+    }
+  ]
+}
