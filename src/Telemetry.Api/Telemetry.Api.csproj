@@ -47,4 +47,40 @@
         <None Include="../../*.yml" LinkBase="assets/compose/"/>
     </ItemGroup>
 
+    <!--
+        Migration assemblies cannot be ProjectReferenced (they reference this project), so Program.cs
+        side-loads them by file name at startup. Publish must therefore copy them in by hand, or
+        Database.MigrateAsync finds no migrations assembly. Set MigrationsProvider=none to opt out.
+    -->
+    <PropertyGroup>
+        <MigrationsProvider Condition="'$(MigrationsProvider)' == ''">SqlServer</MigrationsProvider>
+    </PropertyGroup>
+
+    <Target Name="PublishMigrationsAssembly" AfterTargets="Publish" Condition="'$(MigrationsProvider)' != 'none'">
+        <PropertyGroup>
+            <_MigrationsProject>$(MSBuildThisFileDirectory)../Telemetry.Migrations.$(MigrationsProvider)/Telemetry.Migrations.$(MigrationsProvider).csproj</_MigrationsProject>
+            <_MigrationsBinDir>$(MSBuildThisFileDirectory)bin/$(Configuration)/$(TargetFramework)/</_MigrationsBinDir>
+        </PropertyGroup>
+
+        <Error Condition="!Exists('$(_MigrationsProject)')"
+               Text="MigrationsProvider '$(MigrationsProvider)' does not match a Telemetry.Migrations.* project."/>
+
+        <!-- BuildProjectReferences=false stops this project being rebuilt re-entrantly mid-publish. -->
+        <MSBuild Projects="$(_MigrationsProject)"
+                 Targets="Build"
+                 Properties="Configuration=$(Configuration);TargetFramework=$(TargetFramework);BuildProjectReferences=false"/>
+
+        <ItemGroup>
+            <_MigrationsOutput Include="$(_MigrationsBinDir)Telemetry.Migrations.$(MigrationsProvider).dll"/>
+            <_MigrationsOutput Include="$(_MigrationsBinDir)Telemetry.Migrations.$(MigrationsProvider).pdb"/>
+        </ItemGroup>
+
+        <Copy SourceFiles="@(_MigrationsOutput)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true"/>
+
+        <Error Condition="!Exists('$(PublishDir)Telemetry.Migrations.$(MigrationsProvider).dll')"
+               Text="Telemetry.Migrations.$(MigrationsProvider).dll was not published; migrations would silently not apply."/>
+
+        <Message Importance="high" Text="Published migrations assembly Telemetry.Migrations.$(MigrationsProvider).dll"/>
+    </Target>
+
 </Project>

@@ -274,6 +274,20 @@ namespace Telemetry.Api.Infrastructure.Persistence
                     });
                 });
             });
+
+            modelBuilder.Entity<SavingsEntry>(entity =>
+            {
+                // Matches the task-queue client's dedup key, making batch pushes idempotent.
+                entity.HasIndex(e => new {e.QueueKey, e.Kind, e.SourceId, e.OccurredAt})
+                    .IsUnique()
+                    .HasDatabaseName("UQ_savings_entry");
+
+                entity.HasIndex(e => e.QueueKey)
+                    .HasDatabaseName("IX_savings_queue_key");
+
+                entity.HasIndex(e => e.OccurredAt)
+                    .HasDatabaseName("IX_savings_occurred_at");
+            });
         }
     }
 }

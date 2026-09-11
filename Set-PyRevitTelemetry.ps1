@@ -8,11 +8,11 @@ $telemetrySection = @"
 [telemetry]
 utc_timestamps = true
 active = true
-telemetry_file_dir = ""
-telemetry_server_url = "https://bmcd-pyrevit-telemetry-e0e5g2b0e0brbrf2.uksouth-01.azurewebsites.net/api/v2/scripts"
+telemetry_file_dir = 
+telemetry_server_url = https://bmcd-pyrevit-telemetry-e0e5g2b0e0brbrf2.uksouth-01.azurewebsites.net/api/v2/scripts
 include_hooks = false
 active_app = true
-apptelemetry_server_url = "https://bmcd-pyrevit-telemetry-e0e5g2b0e0brbrf2.uksouth-01.azurewebsites.net/api/v2/events"
+apptelemetry_server_url = https://bmcd-pyrevit-telemetry-e0e5g2b0e0brbrf2.uksouth-01.azurewebsites.net/api/v2/events
 "@
 
 foreach ($path in $configPaths) {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -31,20 +31,18 @@ namespace Telemetry.Migrations.SqlServer.Migrations
                     table.PrimaryKey("PK_savings", x => x._id);
                 });
 
-            // Unique constraint for idempotent upsert (matches task-queue's dedup logic)
+            // Matches the task-queue client's dedup key, making batch pushes idempotent.
             migrationBuilder.CreateIndex(
                 name: "UQ_savings_entry",
                 table: "savings",
                 columns: new[] { "queue_key", "kind", "source_id", "occurred_at" },
                 unique: true);
 
-            // Fast aggregation by queue
             migrationBuilder.CreateIndex(
                 name: "IX_savings_queue_key",
                 table: "savings",
                 column: "queue_key");
 
-            // Fast time-range queries
             migrationBuilder.CreateIndex(
                 name: "IX_savings_occurred_at",
                 table: "savings",
