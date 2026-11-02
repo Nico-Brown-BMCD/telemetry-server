@@ -28,6 +28,11 @@ namespace Telemetry.Api.Application.Interfaces
         Task AddSavingsEntry(SavingsEntry savingsEntry, CancellationToken cancellationToken);
 
         /// <summary>
+        /// Inserts a best-effort MCP telemetry row using the Azure SQL table contract.
+        /// </summary>
+        Task AddMcpTelemetryAsync(McpTelemetryDto dto, CancellationToken cancellationToken);
+
+        /// <summary>
         /// Checks if a savings entry with the given composite key already exists.
         /// </summary>
         /// <returns>True if an entry with matching queue_key, kind, source_id, and occurred_at exists.</returns>

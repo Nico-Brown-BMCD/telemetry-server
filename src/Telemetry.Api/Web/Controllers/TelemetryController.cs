@@ -203,6 +203,60 @@ namespace Telemetry.Api.Web.Controllers
         }
 
         /// <summary>
+        /// Inserts a best-effort MCP telemetry row matching the Azure SQL schema contract.
+        /// </summary>
+        [HttpPost("mcp-telemetry")]
+        [ProducesResponseType(200)]
+        [ProducesResponseType(400)]
+        public async Task<IActionResult> PostMcpTelemetry([FromBody] McpTelemetryDto dto)
+        {
+            try
+            {
+                if (dto is null)
+                {
+                    return BadRequest();
+                }
+
+                var normalized = new McpTelemetryDto
+                {
+                    SessionId = dto.SessionId,
+                    Timestamp = dto.Timestamp,
+                    Username = dto.Username,
+                    HostUser = dto.HostUser,
+                    Hostname = dto.Hostname,
+                    McpServer = dto.McpServer,
+                    ServerVersion = dto.ServerVersion,
+                    Transport = dto.Transport,
+                    ClientName = dto.ClientName,
+                    ClientVersion = dto.ClientVersion,
+                    ToolName = dto.ToolName,
+                    ToolNamespace = dto.ToolNamespace,
+                    RequestId = dto.RequestId,
+                    ExecTimestamp = dto.ExecTimestamp,
+                    DurationMs = dto.DurationMs,
+                    ResultCode = dto.ResultCode ?? 0,
+                    Success = dto.Success ?? false,
+                    InputSummary = dto.InputSummary,
+                    ResultSummary = dto.ResultSummary,
+                    ErrorMessage = dto.ErrorMessage,
+                    Type = dto.Type ?? "tool_call",
+                    Environment = dto.Environment,
+                    Config = dto.Config,
+                    Metadata = dto.Metadata
+                };
+
+                await _context.AddMcpTelemetryAsync(normalized, HttpContext.RequestAborted);
+                await _context.SaveChangesAsync(HttpContext.RequestAborted);
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "MCP telemetry insert failed; ignoring best-effort telemetry error");
+                return Ok();
+            }
+        }
+
+        /// <summary>
         /// Retrieves the current status.
         /// </summary>
         /// <returns>The current status as a status object.</returns>

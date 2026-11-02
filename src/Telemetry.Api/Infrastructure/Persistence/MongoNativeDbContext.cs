@@ -51,6 +51,11 @@ namespace Telemetry.Api.Infrastructure.Persistence
             await _savingsCollection.InsertOneAsync(savingsEntry, new InsertOneOptions(), cancellationToken);
         }
 
+        public Task AddMcpTelemetryAsync(McpTelemetryDto dto, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
         public async Task<bool> SavingsEntryExistsAsync(string queueKey, string kind, long sourceId, DateTimeOffset occurredAt, CancellationToken cancellationToken)
         {
             var filter = Builders<SavingsEntry>.Filter.And(

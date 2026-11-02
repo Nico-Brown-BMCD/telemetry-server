@@ -65,6 +65,48 @@ namespace Telemetry.Api.UnitTests.Web.Controllers
         }
 
         [Test]
+        public async Task PostMcpTelemetry_ShouldReturnOk_WhenSuccessful()
+        {
+            // Arrange
+            McpTelemetryDto dto = new()
+            {
+                SessionId = "sess-123",
+                Timestamp = DateTimeOffset.UtcNow,
+                Username = "alice",
+                HostUser = "svc-user",
+                Hostname = "build-agent",
+                McpServer = "mcp-server",
+                ServerVersion = "1.0.0",
+                Transport = "stdio",
+                ClientName = "VS Code",
+                ClientVersion = "1.2.3",
+                ToolName = "search_code",
+                ToolNamespace = "@workspace",
+                RequestId = "req-456",
+                ExecTimestamp = DateTimeOffset.UtcNow.AddSeconds(-1),
+                DurationMs = 42,
+                ResultCode = 0,
+                Success = true,
+                InputSummary = "search for telemetry",
+                ResultSummary = "results found",
+                Type = "tool_call",
+                Environment = "dev",
+                Config = JsonSerializer.SerializeToElement(new { enabled = true }),
+                Metadata = JsonSerializer.SerializeToElement(new { source = "mcp" })
+            };
+
+            _mockContext.Setup(c => c.AddMcpTelemetryAsync(It.IsAny<McpTelemetryDto>(), It.IsAny<CancellationToken>()))
+                .Returns(Task.CompletedTask);
+
+            // Act
+            IActionResult result = await _controller.PostMcpTelemetry(dto);
+
+            // Assert
+            await Assert.That(result).IsTypeOf<OkResult>();
+            _mockContext.Verify(c => c.AddMcpTelemetryAsync(It.IsAny<McpTelemetryDto>(), It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Test]
         public async Task GetStatus_ShouldReturnOk_WhenDatabaseConnected()
         {
             // Arrange

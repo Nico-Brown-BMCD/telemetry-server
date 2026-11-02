@@ -90,6 +90,83 @@ namespace Telemetry.Api.Infrastructure.Persistence
             await SavingsEntries.AddAsync(savingsEntry, cancellationToken);
         }
 
+        /// <inheritdoc />
+        public Task AddMcpTelemetryAsync(McpTelemetryDto dto, CancellationToken cancellationToken)
+        {
+            var values = new Dictionary<string, object?>
+            {
+                ["sessionId"] = dto.SessionId,
+                ["timestamp"] = dto.Timestamp,
+                ["username"] = dto.Username,
+                ["host_user"] = dto.HostUser,
+                ["hostname"] = dto.Hostname,
+                ["mcp_server"] = dto.McpServer,
+                ["server_version"] = dto.ServerVersion,
+                ["transport"] = dto.Transport,
+                ["client_name"] = dto.ClientName,
+                ["client_version"] = dto.ClientVersion,
+                ["tool_name"] = dto.ToolName,
+                ["tool_namespace"] = dto.ToolNamespace,
+                ["request_id"] = dto.RequestId,
+                ["exec_timestamp"] = dto.ExecTimestamp,
+                ["duration_ms"] = dto.DurationMs,
+                ["resultcode"] = dto.ResultCode ?? 0,
+                ["success"] = dto.Success ?? false,
+                ["input_summary"] = dto.InputSummary,
+                ["result_summary"] = dto.ResultSummary,
+                ["error_message"] = dto.ErrorMessage,
+                ["type"] = dto.Type ?? "tool_call",
+                ["environment"] = dto.Environment,
+                ["config"] = dto.Config.HasValue ? dto.Config.Value.GetRawText() : null,
+                ["metadata"] = dto.Metadata.HasValue ? dto.Metadata.Value.GetRawText() : null
+            };
+
+            if (Database.ProviderName == "Microsoft.EntityFrameworkCore.SqlServer")
+            {
+                var rawSql = @"
+                    INSERT INTO dbo.McpTelemetry (
+                        sessionId, timestamp, username, host_user, hostname, mcp_server, server_version,
+                        transport, client_name, client_version, tool_name, tool_namespace, request_id,
+                        exec_timestamp, duration_ms, resultcode, success, input_summary, result_summary,
+                        error_message, type, environment, config, metadata)
+                    VALUES (
+                        @sessionId, @timestamp, @username, @host_user, @hostname, @mcp_server, @server_version,
+                        @transport, @client_name, @client_version, @tool_name, @tool_namespace, @request_id,
+                        @exec_timestamp, @duration_ms, @resultcode, @success, @input_summary, @result_summary,
+                        @error_message, @type, @environment, @config, @metadata);";
+
+                return Database.ExecuteSqlRawAsync(
+                    rawSql,
+                    new Microsoft.Data.SqlClient.SqlParameter("@sessionId", (object?)dto.SessionId ?? DBNull.Value),
+                    new Microsoft.Data.SqlClient.SqlParameter("@timestamp", (object?)dto.Timestamp ?? DBNull.Value),
+                    new Microsoft.Data.SqlClient.SqlParameter("@username", (object?)dto.Username ?? DBNull.Value),
+                    new Microsoft.Data.SqlClient.SqlParameter("@host_user", (object?)dto.HostUser ?? DBNull.Value),
+                    new Microsoft.Data.SqlClient.SqlParameter("@hostname", (object?)dto.Hostname ?? DBNull.Value),
+                    new Microsoft.Data.SqlClient.SqlParameter("@mcp_server", (object?)dto.McpServer ?? DBNull.Value),
+                    new Microsoft.Data.SqlClient.SqlParameter("@server_version", (object?)dto.ServerVersion ?? DBNull.Value),
+                    new Microsoft.Data.SqlClient.SqlParameter("@transport", (object?)dto.Transport ?? DBNull.Value),
+                    new Microsoft.Data.SqlClient.SqlParameter("@client_name", (object?)dto.ClientName ?? DBNull.Value),
+                    new Microsoft.Data.SqlClient.SqlParameter("@client_version", (object?)dto.ClientVersion ?? DBNull.Value),
+                    new Microsoft.Data.SqlClient.SqlParameter("@tool_name", (object?)dto.ToolName ?? DBNull.Value),
+                    new Microsoft.Data.SqlClient.SqlParameter("@tool_namespace", (object?)dto.ToolNamespace ?? DBNull.Value),
+                    new Microsoft.Data.SqlClient.SqlParameter("@request_id", (object?)dto.RequestId ?? DBNull.Value),
+                    new Microsoft.Data.SqlClient.SqlParameter("@exec_timestamp", (object?)dto.ExecTimestamp ?? DBNull.Value),
+                    new Microsoft.Data.SqlClient.SqlParameter("@duration_ms", (object?)dto.DurationMs ?? DBNull.Value),
+                    new Microsoft.Data.SqlClient.SqlParameter("@resultcode", (object?)dto.ResultCode ?? 0),
+                    new Microsoft.Data.SqlClient.SqlParameter("@success", (object?)(dto.Success ?? false)),
+                    new Microsoft.Data.SqlClient.SqlParameter("@input_summary", (object?)dto.InputSummary ?? DBNull.Value) { SqlDbType = SqlDbType.NVarChar, Size = -1 },
+                    new Microsoft.Data.SqlClient.SqlParameter("@result_summary", (object?)dto.ResultSummary ?? DBNull.Value) { SqlDbType = SqlDbType.NVarChar, Size = -1 },
+                    new Microsoft.Data.SqlClient.SqlParameter("@error_message", (object?)dto.ErrorMessage ?? DBNull.Value) { SqlDbType = SqlDbType.NVarChar, Size = -1 },
+                    new Microsoft.Data.SqlClient.SqlParameter("@type", (object?)(dto.Type ?? "tool_call")),
+                    new Microsoft.Data.SqlClient.SqlParameter("@environment", (object?)dto.Environment ?? DBNull.Value),
+                    new Microsoft.Data.SqlClient.SqlParameter("@config", (object?)(dto.Config.HasValue ? dto.Config.Value.GetRawText() : DBNull.Value)) { SqlDbType = SqlDbType.NVarChar, Size = -1 },
+                    new Microsoft.Data.SqlClient.SqlParameter("@metadata", (object?)(dto.Metadata.HasValue ? dto.Metadata.Value.GetRawText() : DBNull.Value)) { SqlDbType = SqlDbType.NVarChar, Size = -1 },
+                    cancellationToken);
+            }
+
+            return Task.CompletedTask;
+        }
+
         /// <summary>
         /// Checks if a savings entry with the given composite key already exists.
         /// </summary>
