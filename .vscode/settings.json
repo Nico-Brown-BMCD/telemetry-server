@@ -1,4 +1,5 @@
 {
     "appService.defaultWebAppToDeploy": "/subscriptions/ef74c932-a6bc-4e9e-aca8-d91d2710dce1/resourceGroups/GFS-PACommon-S-UK/providers/Microsoft.Web/sites/bmcd-pyrevit-telemetry",
-    "appService.deploySubpath": "./publish"
+    "appService.deploySubpath": "./publish",
+    "appService.preDeployTask": "Build telemetry for deployment"
 }
