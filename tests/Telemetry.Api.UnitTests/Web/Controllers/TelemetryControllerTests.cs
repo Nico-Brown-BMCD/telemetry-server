@@ -7,6 +7,7 @@ using Telemetry.Api.Application.DTOs;
 using Telemetry.Api.Application.Interfaces;
 using Telemetry.Api.Domain.Models;
 using Telemetry.Api.Web.Controllers;
+using System.Data.Common;
 using System.Text.Json;
 
 namespace Telemetry.Api.UnitTests.Web.Controllers
@@ -104,6 +105,47 @@ namespace Telemetry.Api.UnitTests.Web.Controllers
             // Assert
             await Assert.That(result).IsTypeOf<OkResult>();
             _mockContext.Verify(c => c.AddMcpTelemetryAsync(It.IsAny<McpTelemetryDto>(), It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Test]
+        public async Task PostMcpTelemetry_ShouldReportDatabaseFailure_WithoutLeakingErrorMessage()
+        {
+            _controller.HttpContext.TraceIdentifier = "mcp-insert-test";
+            var dto = new McpTelemetryDto { RequestId = "failed-request" };
+            _mockContext.Setup(context => context.AddMcpTelemetryAsync(It.IsAny<McpTelemetryDto>(), It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new DbUpdateException("outer error", new TestDatabaseException()));
+
+            var result = (ObjectResult)await _controller.PostMcpTelemetry(dto);
+            var problem = (ProblemDetails)result.Value!;
+
+            await Assert.That(result.StatusCode).IsEqualTo(503);
+            await Assert.That(problem.Status).IsEqualTo(503);
+            await Assert.That((int)problem.Extensions["databaseErrorCode"]!).IsEqualTo(515);
+            await Assert.That((string)problem.Extensions["traceId"]!).IsEqualTo("mcp-insert-test");
+            await Assert.That((string)problem.Extensions["requestId"]!).IsEqualTo("failed-request");
+            await Assert.That(problem.Detail!.Contains("sensitive")).IsFalse();
+            _mockContext.Verify(context => context.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        }
+
+        [Test]
+        public async Task PostMcpTelemetry_ShouldReportFailure_WhenSaveChangesFails()
+        {
+            _mockContext.Setup(context => context.AddMcpTelemetryAsync(It.IsAny<McpTelemetryDto>(), It.IsAny<CancellationToken>()))
+                .Returns(Task.CompletedTask);
+            _mockContext.Setup(context => context.SaveChangesAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new InvalidOperationException("sensitive configuration"));
+
+            var result = (ObjectResult)await _controller.PostMcpTelemetry(new McpTelemetryDto());
+            var problem = (ProblemDetails)result.Value!;
+
+            await Assert.That(result.StatusCode).IsEqualTo(500);
+            await Assert.That((string)problem.Extensions["errorType"]!).IsEqualTo(nameof(InvalidOperationException));
+            await Assert.That(problem.Detail!.Contains("sensitive")).IsFalse();
+        }
+
+        private sealed class TestDatabaseException : DbException
+        {
+            public TestDatabaseException() : base("sensitive database error", 515) { }
         }
 
         [Test]

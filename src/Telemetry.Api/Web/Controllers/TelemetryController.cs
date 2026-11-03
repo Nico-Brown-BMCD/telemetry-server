@@ -4,6 +4,8 @@ using Telemetry.Api.Application.Mappings;
 using Telemetry.Api.Application.DTOs;
 using Telemetry.Api.Application.Interfaces;
 using Telemetry.Api.Domain.Models;
+using Microsoft.Data.SqlClient;
+using System.Data.Common;
 using System.Diagnostics;
 
 namespace Telemetry.Api.Web.Controllers
@@ -203,11 +205,13 @@ namespace Telemetry.Api.Web.Controllers
         }
 
         /// <summary>
-        /// Inserts a best-effort MCP telemetry row matching the Azure SQL schema contract.
+        /// Inserts an MCP telemetry row and reports database failures.
         /// </summary>
         [HttpPost("mcp-telemetry")]
         [ProducesResponseType(200)]
         [ProducesResponseType(400)]
+        [ProducesResponseType(typeof(ProblemDetails), 500)]
+        [ProducesResponseType(typeof(ProblemDetails), 503)]
         public async Task<IActionResult> PostMcpTelemetry([FromBody] McpTelemetryDto dto)
         {
             try
@@ -251,8 +255,51 @@ namespace Telemetry.Api.Web.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "MCP telemetry insert failed; ignoring best-effort telemetry error");
-                return Ok();
+                _logger.LogError(ex, "MCP telemetry insert failed. TraceId: {TraceId}; RequestId: {RequestId}",
+                    HttpContext.TraceIdentifier, dto?.RequestId);
+
+                var cause = ex.GetBaseException();
+                var databaseError = cause as DbException;
+                var status = databaseError is null ? StatusCodes.Status500InternalServerError : StatusCodes.Status503ServiceUnavailable;
+                var problem = new ProblemDetails
+                {
+                    Title = "MCP telemetry insert failed",
+                    Status = status,
+                    Detail = "The telemetry write failed. Use the traceId to find the full error in the server logs.",
+                    Extensions =
+                    {
+                        ["traceId"] = HttpContext.TraceIdentifier,
+                        ["requestId"] = dto?.RequestId,
+                        ["errorType"] = cause.GetType().Name
+                    }
+                };
+
+                if (databaseError is not null)
+                {
+                    problem.Extensions["databaseErrorCode"] = databaseError.ErrorCode;
+                }
+
+                if (cause is SqlException sqlError)
+                {
+                    problem.Extensions["sqlErrorNumber"] = sqlError.Number;
+                    problem.Extensions["sqlState"] = sqlError.State;
+                    problem.Extensions["sqlSeverity"] = sqlError.Class;
+                    problem.Extensions["clientConnectionId"] = sqlError.ClientConnectionId;
+                    problem.Detail = sqlError.Number switch
+                    {
+                        208 => "SQL Server could not find a referenced table or object.",
+                        229 => "SQL Server denied permission to execute the database operation.",
+                        515 => "A required database column received NULL.",
+                        245 or 8169 => "SQL Server could not convert a supplied value to the required column type.",
+                        8152 or 2628 => "A supplied value exceeds the database column length.",
+                        18456 => "SQL Server rejected the database login.",
+                        4060 => "SQL Server could not open the configured database.",
+                        -2 => "The database operation timed out.",
+                        _ => problem.Detail
+                    };
+                }
+
+                return StatusCode(status, problem);
             }
         }
 
